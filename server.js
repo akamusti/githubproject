@@ -1,16 +1,18 @@
 require('dotenv').config();
 const express = require('express');
 const path = require('path');
-const session = require('express-session');
+const cookieSession = require('cookie-session');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(session({
-  secret: process.env.SESSION_SECRET || 'gitpulse-dev-secret-change-in-prod',
-  resave: false,
-  saveUninitialized: false,
-  cookie: { maxAge: 1000 * 60 * 60 * 24 * 7, httpOnly: true, sameSite: 'lax' }
+app.use(cookieSession({
+  name: 'gitpulse',
+  keys: [process.env.SESSION_SECRET || 'gitpulse-dev-secret-change-in-prod'],
+  maxAge: 1000 * 60 * 60 * 24 * 7,
+  httpOnly: true,
+  sameSite: 'lax',
+  secure: process.env.NODE_ENV === 'production'
 }));
 const GH_TOKEN = process.env.GITHUB_TOKEN || '';
 
@@ -271,7 +273,8 @@ app.get('/auth/github/callback', async (req, res) => {
 });
 
 app.get('/auth/logout', (req, res) => {
-  req.session.destroy(() => res.redirect('/'));
+  req.session = null;
+  res.redirect('/');
 });
 
 // SPA fallback
@@ -279,7 +282,11 @@ app.get('*', (_req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-app.listen(PORT, () => {
-  console.log(`GitPulse running at http://localhost:${PORT}`);
-  console.log(`GitHub API: ${GH_TOKEN ? 'authenticated' : 'unauthenticated (60 req/hr limit)'}`);
-});
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`GitPulse running at http://localhost:${PORT}`);
+    console.log(`GitHub API: ${GH_TOKEN ? 'authenticated' : 'unauthenticated (60 req/hr limit)'}`);
+  });
+}
+
+module.exports = app;
